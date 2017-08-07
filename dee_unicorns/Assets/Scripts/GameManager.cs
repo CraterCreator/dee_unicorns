@@ -10,29 +10,28 @@ using System.Security.Cryptography.X509Certificates;
 
 public class GameManager : MonoBehaviour
 {
-    public bool showLog, accForgot;
-    public GameObject login, create, forgot;
-    public string username, password, email;
-    public InputField Username, Email, Password, forgotEmail; 
+    public bool accForgot;
+    public GameObject login, create, forgot, inputCode, resetPassword;
+    public string username, password, email, recoveryCode;
+    public InputField Username, Email, Password, forgotEmail, RecoveryCode, NPass, ConfirmNPass;
     // Use this for initialization
     void Start()
     {
-        showLog = true;
 
     }
 
     // Update is called once per frame
     void Update()
     {
-        if(accForgot)
+        if (accForgot)
         {
             if (forgotEmail.text != email)
             {
                 email = forgotEmail.text;
             }
         }
-     
-        if (!showLog && !accForgot)
+
+        if (!accForgot)
         {
             if (Username.text != username)
             {
@@ -60,11 +59,34 @@ public class GameManager : MonoBehaviour
     {
         login.SetActive(false);
         forgot.SetActive(true);
+
+        accForgot = true;
+    }
+
+    public void InputCode()
+    {
+        if (RecoveryCode.text == recoveryCode)
+        {
+            resetPassword.SetActive(true);
+            inputCode.SetActive(false);
+        }
+    }
+
+    public void ResetPassword()
+    {
+        if (NPass.text == ConfirmNPass.text)
+        {
+            StartCoroutine(UpdatePassword(email, NPass.text));
+        }
+        else
+        {
+            Debug.Log("Error");
+        }
     }
 
     public void CreateAccountButton()
     {
-        StartCoroutine(CreateUser(username,password,email));
+        StartCoroutine(CreateUser(username, password, email));
     }
 
     IEnumerator CreateUser(string userName, string passWord, string eMail)
@@ -88,25 +110,6 @@ public class GameManager : MonoBehaviour
         StartCoroutine(Login(username, password));
     }
 
-    public void ForgotAccount()
-    {
-        MailMessage mail = new MailMessage();
-
-        mail.From = new MailAddress("sqlunityclasssydney@gmail.com");
-        mail.To.Add(email);
-        mail.Subject = "Password Reset";
-        mail.Body = "Hello User /n/n Someones gone and done a goof /n Reset password here...";
-
-        SmtpClient smtpServer = new SmtpClient("smtp.gmail.com");
-        smtpServer.Port = 25;
-        smtpServer.Credentials = new NetworkCredential("sqlunityclasssydney@gmail.com", "sqlpassword") as ICredentialsByHost;
-        smtpServer.EnableSsl = true;
-        ServicePointManager.ServerCertificateValidationCallback = delegate (object s, X509Certificate cert, X509Chain chain, SslPolicyErrors errors) { return true; };
-        smtpServer.Send(mail);
-
-        Debug.Log("Email Sent");
-    }
-
     IEnumerator Login(string username, string password)
     {
         string loginURL = "localhost/unicorns_dee/Login.php";
@@ -117,9 +120,71 @@ public class GameManager : MonoBehaviour
         yield return www;
 
         Debug.Log(www.text);
-        if(www.text == "Login Success")
+        if (www.text == "Login Success")
         {
             // Action
         }
     }
+
+    IEnumerator GetUser(string eMail)
+    {
+        string getUserName = "localhost/unicorns_dee/CheckUser.php";
+        WWWForm getUserForm = new WWWForm();
+        getUserForm.AddField("emailPost", eMail);
+        WWW www = new WWW(getUserName, getUserForm);
+        yield return www;
+        Debug.Log(www.text);
+        if (www.text != "No User")
+        {
+            username = www.text;
+            SendEmail();
+        }
+
+    }
+
+
+    public void SendEmail()
+    {
+        MailMessage mail = new MailMessage();
+        mail.To.Add(email);
+        mail.Subject = "Password Reset";
+        recoveryCode = CodeGenerator.CodeGenerate(6);
+        mail.Body = "Hello " + username + "\nreset using the code:" + recoveryCode;
+
+        SmtpClient smtpServer = new SmtpClient("smtp.gmail.com");
+        smtpServer.Port = 25;
+        smtpServer.Credentials = new System.Net.NetworkCredential("sqlunityclasssydney@gmail.com", "sqlpassword") as ICredentialsByHost;
+        smtpServer.EnableSsl = true;
+        ServicePointManager.ServerCertificateValidationCallback =
+        delegate (object s, X509Certificate cert, X509Chain chain, SslPolicyErrors policyErrors)
+        { return true; };
+        smtpServer.Send(mail);
+
+        Debug.Log("Success");
+
+        forgot.SetActive(false);
+        inputCode.SetActive(true);
+    }
+
+    IEnumerator UpdatePassword(string eMail, string passWord)
+    {
+        string PasswordURL = "localhost/unicorns_dee/UpdatePassword.php";
+        WWWForm passwordForm = new WWWForm();
+        passwordForm.AddField("emailPost", eMail);
+        passwordForm.AddField("passwordPost", passWord);
+        WWW www = new WWW(PasswordURL, passwordForm);
+
+        yield return www;
+        Debug.Log(www.text);
+        if (www.text != "error")
+        {
+            login.SetActive(true);
+            resetPassword.SetActive(false);
+
+
+            accForgot = false;
+        }
+
+    }
+
 }
